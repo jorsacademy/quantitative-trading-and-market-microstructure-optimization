@@ -34,7 +34,6 @@ def test_venue_books_are_independent():
 
     before_second = second.observe().to_series().copy()
 
-    first.submit_limit = first.book.submit_limit  # type: ignore[attr-defined]
     first.book.submit_limit(
         order_id="manual-bid",
         trader_id="manual",
