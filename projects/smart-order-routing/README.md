@@ -83,3 +83,26 @@ dynamic latency-aware rerouting
 on matched synthetic market seeds.
 
 The original MILP remains the transparent static baseline; the live environment is the microstructure execution layer.
+
+
+## Maker/taker and dark-pool extension
+
+The live router now supports three execution modes:
+
+- lit taker;
+- lit maker;
+- midpoint dark pool.
+
+The maker path uses live queue-ahead, imbalance, venue latency, patience, and maker rebates.
+
+The dark path uses midpoint execution with stochastic hidden liquidity and time-in-force.
+
+A hybrid MILP allocates each routing wave across venue × mode candidates and re-routes residual quantity after realized fills.
+
+Run:
+
+~~~bash
+python projects/multi-venue-fragmented-market/run_hybrid_routing.py
+~~~
+
+This benchmark compares dynamic lit-taker-only routing against the hybrid maker/taker/dark policy on matched market seeds.
