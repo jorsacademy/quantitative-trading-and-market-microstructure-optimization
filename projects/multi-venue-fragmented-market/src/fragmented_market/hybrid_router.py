@@ -298,6 +298,7 @@ def hybrid_route_once(
     maker_patience_steps: int = 3,
     maximum_active_actions: int = 5,
     minimum_expected_fill_ratio: float = 0.70,
+    toxicity_penalty_ticks: float = 1.25,
 ) -> pd.DataFrame:
     """Solve one hybrid maker/taker/dark allocation MILP."""
     candidates = candidate_table(
@@ -305,6 +306,7 @@ def hybrid_route_once(
         dark_pool,
         side=side,
         maker_patience_steps=maker_patience_steps,
+        toxicity_penalty_ticks=toxicity_penalty_ticks,
     )
     candidates = candidates[candidates["capacity"] > 0].copy()
 
@@ -404,6 +406,7 @@ def route_hybrid_parent_order(
     trader_id: str = "hybrid_router",
     maker_patience_steps: int = 3,
     max_steps: int = 20,
+    toxicity_penalty_ticks: float = 1.25,
 ) -> HybridRoutingResult:
     """Execute a parent order using lit taker, lit maker, and dark midpoint."""
     requested = int(quantity)
@@ -478,6 +481,7 @@ def route_hybrid_parent_order(
                 side=side,
                 quantity=allocatable,
                 maker_patience_steps=maker_patience_steps,
+                toxicity_penalty_ticks=toxicity_penalty_ticks,
             )
 
             for candidate, row in allocation.iterrows():
