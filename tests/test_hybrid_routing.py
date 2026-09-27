@@ -1,5 +1,6 @@
 import numpy as np
 
+from limit_order_book_simulator.environment import AgentAction
 from fragmented_market.dark_pool import MidpointDarkPool
 from fragmented_market.environment import MultiVenueMarket
 from fragmented_market.hybrid_router import (
@@ -61,26 +62,24 @@ def test_maker_fill_uses_maker_rebate_accounting():
     )
     market.step()
 
-    # Force an external buy market order against the resting maker quote.
-    env.apply_action(
-        __import__(
-            "limit_order_book_simulator.environment",
-            fromlist=["AgentAction"],
-        ).AgentAction(
+    trades = env.apply_action(
+        AgentAction(
             action_type="market",
             trader_id="external_taker",
             side="buy",
             quantity=5,
         )
     )
+    executions = market._record_maker_fills(
+        venue,
+        tuple(trades),
+    )
 
-    # The direct forced trade bypasses MultiVenueMarket.step maker logging,
-    # so submit another deterministic background-compatible trade through step.
-    # Repost and consume using the venue environment, then record via the
-    # market's maker-fill path on the following step if background flow trades.
-    # The core invariant here is that the configured maker economics are rebates.
-    assert market._config_by_name[venue].maker_rebate_bps <= 0.0
-    assert order_id.startswith("maker_agent")
+    assert len(executions) == 1
+    assert executions[0].order_id == order_id
+    assert executions[0].liquidity_role == "maker"
+    assert executions[0].filled_quantity == 5
+    assert executions[0].explicit_fee <= 0.0
 
 
 def test_hybrid_parent_order_preserves_quantity_accounting():
