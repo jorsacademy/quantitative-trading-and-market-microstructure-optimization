@@ -50,3 +50,36 @@ Natural extensions include dynamic rerouting after partial fills, queue position
 ## Limitations
 
 This model is a synthetic routing allocator, not an exchange/broker smart-order router. It does not connect to venues or represent real execution rules.
+
+
+## Live fragmented-market extension
+
+The project now also connects to the repository's multi-venue event-driven market simulator.
+
+The live extension replaces fixed venue attributes with observations from independent venue books:
+
+- executable best price;
+- top-of-book depth;
+- current imbalance;
+- fee/rebate schedule;
+- venue latency.
+
+The dynamic router re-solves after realized fills and book changes.
+
+### Benchmark
+
+~~~bash
+python projects/multi-venue-fragmented-market/run_fragmented_market.py
+~~~
+
+This compares:
+
+~~~text
+initial one-shot routing
+vs.
+dynamic latency-aware rerouting
+~~~
+
+on matched synthetic market seeds.
+
+The original MILP remains the transparent static baseline; the live environment is the microstructure execution layer.
