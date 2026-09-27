@@ -17,6 +17,7 @@ It is deliberately not a collection of price-prediction notebooks. The core ques
 | [Smart Order Routing](projects/smart-order-routing/) | Allocate an order across fragmented venues under capacity, fee, latency, and fill-risk differences | MILP | Implemented |
 | [Limit Order Placement](projects/limit-order-placement/) | Decide market/limit/wait actions from queue and order-book state | MDP / dynamic programming | Implemented |
 | [RFQ Pricing & Dealer Optimization](projects/rfq-pricing-dealer-optimization/) | Select client quote levels under acceptance and inventory-risk trade-offs | Discrete stochastic optimization / MILP | Implemented |
+| [Event-Driven Limit Order Book Simulator](projects/limit-order-book-simulator/) | Run execution, placement, and market-making policies on one synthetic exchange | Price-time matching, queue simulation, event-driven environment | Flagship |
 
 ## Design principles
 
@@ -47,6 +48,8 @@ python projects/optimal-trade-execution/run_advanced.py
 
 python -m trading_optimization.market_making
 python projects/market-making-inventory-control/run_advanced.py
+python projects/limit-order-book-simulator/run_shared_environment.py
+
 python -m trading_optimization.smart_order_routing
 python -m trading_optimization.limit_order_placement
 python -m trading_optimization.rfq_pricing
@@ -60,7 +63,8 @@ projects/
 ├── market-making-inventory-control/
 ├── smart-order-routing/
 ├── limit-order-placement/
-└── rfq-pricing-dealer-optimization/
+├── rfq-pricing-dealer-optimization/
+└── limit-order-book-simulator/
 
 src/
 └── trading_optimization/
@@ -82,6 +86,8 @@ optimization / control model
 action policy
         ↓
 benchmark + stress validation
+        ↓
+shared event-driven market simulation
 ```
 
 ## Scope
