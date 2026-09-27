@@ -16,7 +16,7 @@ It is deliberately not a collection of price-prediction notebooks. The core ques
 | [Market Making & Inventory Control](projects/market-making-inventory-control/) | Optimize dealer quotes under single/multi-asset inventory risk and compare control vs RL | Dynamic programming, Avellaneda-Stoikov, multi-asset control, Q-learning | Flagship |
 | [Smart Order Routing](projects/smart-order-routing/) | Allocate maker, taker, and dark child orders under latency, queue risk, and venue toxicity | MILP, toxicity-aware hybrid routing, midpoint dark pool, dynamic rerouting | Flagship |
 | [Limit Order Placement](projects/limit-order-placement/) | Decide market/limit/wait actions from queue and order-book state | MDP / dynamic programming | Implemented |
-| [RFQ Pricing & Dealer Optimization](projects/rfq-pricing-dealer-optimization/) | Select client quote levels under acceptance and inventory-risk trade-offs | Discrete stochastic optimization / MILP | Implemented |
+| [RFQ Pricing & Dealer Optimization](projects/rfq-pricing-dealer-optimization/) | Price corporate-credit RFQs while managing multi-period IG/HY inventory with CDX-style hedges | MILP, client-response elasticity, dynamic inventory, hedge optimization | Flagship |
 | [Event-Driven Limit Order Book Simulator](projects/limit-order-book-simulator/) | Run strategies under calibrated self-exciting and queue-reactive order flow | Price-time matching, Hawkes flow, queue-reactive calibration, toxicity model | Flagship |
 | [Multi-Venue Fragmented Market](projects/multi-venue-fragmented-market/) | Route across lit and dark liquidity with calibrated venue flow and adverse-selection risk | Fragmented-market simulation, Hawkes flow, toxicity-aware maker/taker/dark routing | Flagship |
 
