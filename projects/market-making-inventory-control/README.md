@@ -226,3 +226,14 @@ same synthetic fill model as the DP benchmark.
 The multi-asset model uses a small discrete state/action space. It does not yet
 include cross-asset hedging instruments, stochastic covariance regimes, queue
 priority, adverse selection, latency, or live order-book state.
+
+
+## Shared event-driven benchmark
+
+This project can also be evaluated on the repository's common synthetic exchange:
+
+~~~bash
+python projects/limit-order-book-simulator/run_shared_environment.py
+~~~
+
+The shared environment uses a price-time-priority matching engine, live queue depth, background order flow, cancellations, partial fills, and trader-level inventory/cash accounting.
