@@ -85,13 +85,45 @@ def candidate_table(
     maximum_passive_quantity_per_venue: int = 40,
     failure_penalty_ticks: float = 1.50,
     latency_penalty_per_step_ticks: float = 0.12,
+    toxicity_penalty_ticks: float = 1.25,
 ) -> pd.DataFrame:
     """Build live venue×mode candidates for one routing wave."""
     rows = []
     mid = snapshot.consolidated_mid_tick
 
+    order_sign = 1.0 if side == "buy" else -1.0
+
     for venue, row in snapshot.venues.iterrows():
         latency = int(row["latency_steps"])
+        base_toxicity = float(
+            np.clip(
+                row.get("toxicity_probability", 0.0),
+                0.0,
+                1.0,
+            )
+        )
+        flow_pressure = float(
+            row.get("flow_pressure", 0.0)
+        )
+
+        taker_toxicity = float(
+            np.clip(
+                base_toxicity
+                + 0.20
+                * max(order_sign * flow_pressure, 0.0),
+                0.0,
+                1.0,
+            )
+        )
+        maker_toxicity = float(
+            np.clip(
+                base_toxicity
+                + 0.25
+                * max(-order_sign * flow_pressure, 0.0),
+                0.0,
+                1.0,
+            )
+        )
         fee_tick_taker = (
             float(row["taker_fee_bps"])
             / 10_000.0
@@ -129,6 +161,7 @@ def candidate_table(
             + latency_penalty_per_step_ticks * latency
             + failure_penalty_ticks
             * (1.0 - taker_fill_probability)
+            + toxicity_penalty_ticks * taker_toxicity
         )
 
         rows.append(
@@ -146,6 +179,7 @@ def candidate_table(
                 "queue_ahead": 0.0,
                 "unit_cost": taker_cost,
                 "latency_steps": latency,
+                "toxicity_probability": taker_toxicity,
             }
         )
 
@@ -172,6 +206,9 @@ def candidate_table(
         maker_expected_cost = (
             maker_probability * maker_cost_if_fill
             + (1.0 - maker_probability) * maker_cost_if_fail
+            + toxicity_penalty_ticks
+            * maker_toxicity
+            * maker_probability
         )
 
         rows.append(
@@ -194,6 +231,7 @@ def candidate_table(
                 "queue_ahead": queue_ahead,
                 "unit_cost": maker_expected_cost,
                 "latency_steps": latency,
+                "toxicity_probability": maker_toxicity,
             }
         )
 
@@ -211,6 +249,14 @@ def candidate_table(
         if side == "buy"
         else -float(snapshot.nbbo_bid_tick)
     )
+    venue_toxicity = (
+        float(snapshot.venues["toxicity_probability"].mean())
+        if "toxicity_probability" in snapshot.venues
+        else 0.0
+    )
+    dark_toxicity = float(
+        np.clip(0.55 * venue_toxicity, 0.0, 1.0)
+    )
     dark_expected_cost = (
         dark_probability * (midpoint_cost + dark_fee_ticks)
         + (1.0 - dark_probability)
@@ -220,6 +266,9 @@ def candidate_table(
             + latency_penalty_per_step_ticks
             * dark_pool.config.latency_steps
         )
+        + toxicity_penalty_ticks
+        * dark_toxicity
+        * dark_probability
     )
 
     rows.append(
@@ -233,6 +282,7 @@ def candidate_table(
             "queue_ahead": np.nan,
             "unit_cost": dark_expected_cost,
             "latency_steps": dark_pool.config.latency_steps,
+            "toxicity_probability": dark_toxicity,
         }
     )
 
