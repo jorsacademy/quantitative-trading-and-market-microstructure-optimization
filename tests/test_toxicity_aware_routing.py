@@ -1,16 +1,31 @@
 import numpy as np
+import pytest
 
 from smart_order_routing.toxicity_market import (
     compare_toxicity_aware_routing,
 )
 
 
-def test_toxicity_routing_benchmark_has_both_policies():
-    table, results = compare_toxicity_aware_routing(
+@pytest.fixture(scope="module")
+def buy_benchmark():
+    return compare_toxicity_aware_routing(
         side="buy",
         quantity=60,
         seed=510,
     )
+
+
+@pytest.fixture(scope="module")
+def sell_benchmark():
+    return compare_toxicity_aware_routing(
+        side="sell",
+        quantity=55,
+        seed=511,
+    )
+
+
+def test_toxicity_routing_benchmark_has_both_policies(buy_benchmark):
+    table, results = buy_benchmark
 
     assert set(table.index) == {
         "toxicity_blind",
@@ -20,12 +35,8 @@ def test_toxicity_routing_benchmark_has_both_policies():
     assert "aware_market" in results
 
 
-def test_toxicity_routing_preserves_parent_order_accounting():
-    table, _ = compare_toxicity_aware_routing(
-        side="sell",
-        quantity=55,
-        seed=511,
-    )
+def test_toxicity_routing_preserves_parent_order_accounting(sell_benchmark):
+    table, _ = sell_benchmark
 
     for _, row in table.iterrows():
         assert (
@@ -36,12 +47,8 @@ def test_toxicity_routing_preserves_parent_order_accounting():
         assert 0.0 <= row["fill_ratio"] <= 1.0
 
 
-def test_toxicity_routing_metrics_are_finite():
-    table, _ = compare_toxicity_aware_routing(
-        side="buy",
-        quantity=50,
-        seed=512,
-    )
+def test_toxicity_routing_metrics_are_finite(buy_benchmark):
+    table, _ = buy_benchmark
 
     for column in (
         "explicit_fees",
