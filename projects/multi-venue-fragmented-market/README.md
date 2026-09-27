@@ -141,3 +141,150 @@ dynamic rerouting
 The environment is still synthetic. It does not model real exchange matching-rule differences, co-location infrastructure, microsecond timestamping, hidden liquidity, dark pools, pegged orders, venue-specific order types, exchange outages, or real fee tiers.
 
 It is a research testbed for fragmented-market decision problems, not a broker routing system.
+
+
+## Hybrid lit-maker / lit-taker / dark-pool routing
+
+The fragmented-market layer now also supports a second execution architecture:
+
+~~~text
+live venue books
+      +
+midpoint dark pool
+      ↓
+candidate generation
+      ↓
+lit taker
+lit maker
+dark midpoint
+      ↓
+hybrid allocation MILP
+      ↓
+fills / queue / latency / hidden liquidity
+      ↓
+residual rerouting
+~~~
+
+### Lit taker
+
+A taker child order crosses the current venue book.
+
+Its routing score reflects:
+
+- executable best price;
+- taker fee;
+- venue latency;
+- probability that displayed liquidity is still available on arrival;
+- fallback penalty for unfilled quantity.
+
+### Lit maker
+
+A maker child order rests at the current best same-side quote.
+
+Expected fill probability depends on:
+
+- current queue-ahead quantity;
+- order-book imbalance;
+- venue latency;
+- configured patience horizon.
+
+Maker economics include the venue maker rebate.
+
+Resting orders are cancelled after their patience budget and any residual quantity can be rerouted.
+
+### Dark midpoint
+
+The dark-pool simulator has:
+
+- no displayed depth;
+- midpoint execution;
+- stochastic hidden contra liquidity;
+- delayed eligibility;
+- time-in-force;
+- explicit dark-pool fee.
+
+Fill probability increases with the waiting horizon, but execution is uncertain.
+
+### Hybrid optimization
+
+Each routing wave solves an integer allocation over venue × execution-mode candidates.
+
+The model chooses quantity across:
+
+~~~text
+venue_a:lit_taker
+venue_a:lit_maker
+venue_b:lit_taker
+venue_b:lit_maker
+...
+dark_midpoint:dark_midpoint
+~~~
+
+under:
+
+- per-candidate capacity;
+- maximum active actions;
+- minimum expected fill ratio;
+- parent-order conservation.
+
+The expected-cost proxy incorporates price, fee/rebate, latency, queue risk, and fallback cost.
+
+### Hard deadline
+
+Passive lit and dark orders are cancelled before the final deadline.
+
+Any remaining quantity is crossed through the dynamic lit-taker router so the benchmark distinguishes:
+
+- price improvement from passive/dark execution;
+- fill risk and waiting;
+- deadline completion cost.
+
+## Hybrid benchmark
+
+Run:
+
+~~~bash
+python projects/multi-venue-fragmented-market/run_hybrid_routing.py
+~~~
+
+The benchmark compares:
+
+~~~text
+dynamic lit-taker-only routing
+vs.
+hybrid lit-maker / lit-taker / dark routing
+~~~
+
+on matched synthetic market seeds.
+
+Reported metrics include:
+
+- total fill ratio;
+- average execution price;
+- explicit fees / maker rebates;
+- implementation shortfall;
+- maker fill quantity;
+- taker fill quantity;
+- dark fill quantity;
+- market steps.
+
+Generated outputs include:
+
+~~~text
+lit_vs_hybrid_routing.csv
+lit_taker_route_decisions.csv
+lit_taker_executions.csv
+hybrid_route_decisions.csv
+hybrid_lit_executions.csv
+hybrid_dark_executions.csv
+~~~
+
+## Extended project code
+
+~~~text
+src/fragmented_market/
+├── environment.py
+├── router.py
+├── dark_pool.py
+└── hybrid_router.py
+~~~
