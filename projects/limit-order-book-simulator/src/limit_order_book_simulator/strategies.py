@@ -168,13 +168,16 @@ def run_market_maker(
             int(round(float(quote["ask_offset"]))),
         )
 
-        if inventory < maximum_inventory:
+        buy_headroom = max(0, maximum_inventory - inventory)
+        sell_headroom = max(0, maximum_inventory + inventory)
+
+        if buy_headroom > 0:
             actions.append(
                 AgentAction(
                     action_type="limit",
                     trader_id=trader_id,
                     side="buy",
-                    quantity=quote_size,
+                    quantity=min(quote_size, buy_headroom),
                     price_tick=max(
                         1,
                         obs.best_bid_tick - bid_offset + 1,
@@ -183,13 +186,13 @@ def run_market_maker(
                 )
             )
 
-        if inventory > -maximum_inventory:
+        if sell_headroom > 0:
             actions.append(
                 AgentAction(
                     action_type="limit",
                     trader_id=trader_id,
                     side="sell",
-                    quantity=quote_size,
+                    quantity=min(quote_size, sell_headroom),
                     price_tick=obs.best_ask_tick + ask_offset - 1,
                     order_id=f"{trader_id}-ask-{step}",
                 )
