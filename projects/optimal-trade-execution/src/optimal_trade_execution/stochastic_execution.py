@@ -252,6 +252,7 @@ def solve_stochastic(
     problem: StochasticExecutionProblem | None = None,
     impact_model: ImpactModel | None = None,
 ) -> StochasticExecutionResult:
+    """Solve stochastic execution with an explicit CVaR auxiliary formulation."""
     p = problem or default_stochastic_problem()
     model = impact_model or fit_impact_model()
 
@@ -262,14 +263,51 @@ def solve_stochastic(
 
     base = p.base
     alpha_paths, volatility_paths = generate_scenarios(p)
+    n = len(base.market_volume)
+    s = p.scenarios
 
     caps = (
         base.maximum_participation
         * base.market_volume.to_numpy(float)
     )
-    initial = vwap_schedule(base).to_numpy(float)
+    initial_q = vwap_schedule(base).to_numpy(float)
 
-    def objective(q: np.ndarray) -> float:
+    initial_costs = scenario_costs(
+        initial_q,
+        p,
+        model,
+        alpha_paths,
+        volatility_paths,
+    )
+    initial_eta = float(
+        np.quantile(
+            initial_costs.to_numpy(float),
+            p.cvar_alpha,
+        )
+    )
+    initial_xi = np.maximum(
+        initial_costs.to_numpy(float) - initial_eta,
+        0.0,
+    )
+
+    # Variables: q[0:n] | eta | xi[0:s]
+    x0 = np.concatenate(
+        [
+            initial_q,
+            np.array([initial_eta]),
+            initial_xi,
+        ]
+    )
+
+    def unpack(x: np.ndarray) -> tuple[np.ndarray, float, np.ndarray]:
+        return (
+            x[:n],
+            float(x[n]),
+            x[n + 1 :],
+        )
+
+    def objective(x: np.ndarray) -> float:
+        q, eta, xi = unpack(x)
         costs = scenario_costs(
             q,
             p,
@@ -277,24 +315,54 @@ def solve_stochastic(
             alpha_paths,
             volatility_paths,
         )
-        return _objective_from_costs(costs, p)[3]
+        expected = float(costs.mean())
+        cvar_proxy = (
+            eta
+            + float(xi.mean())
+            / (1.0 - p.cvar_alpha)
+        )
+        return expected + p.cvar_weight * cvar_proxy
+
+    def cvar_constraints(x: np.ndarray) -> np.ndarray:
+        q, eta, xi = unpack(x)
+        costs = scenario_costs(
+            q,
+            p,
+            model,
+            alpha_paths,
+            volatility_paths,
+        ).to_numpy(float)
+
+        # SLSQP ineq requires >= 0:
+        # xi_s >= cost_s(q) - eta.
+        return xi + eta - costs
+
+    bounds = (
+        [(0.0, float(cap)) for cap in caps]
+        + [(None, None)]
+        + [(0.0, None)] * s
+    )
 
     result = minimize(
         objective,
-        x0=initial,
+        x0=x0,
         method="SLSQP",
-        bounds=[(0.0, float(cap)) for cap in caps],
+        bounds=bounds,
         constraints=[
             {
                 "type": "eq",
-                "fun": lambda q: float(
-                    q.sum() - base.total_quantity
+                "fun": lambda x: float(
+                    x[:n].sum() - base.total_quantity
                 ),
-            }
+            },
+            {
+                "type": "ineq",
+                "fun": cvar_constraints,
+            },
         ],
         options={
             "ftol": 1e-10,
-            "maxiter": 1_500,
+            "maxiter": 2_000,
             "disp": False,
         },
     )
@@ -303,7 +371,7 @@ def solve_stochastic(
             f"stochastic execution failed: {result.message}"
         )
 
-    q = np.asarray(result.x, dtype=float)
+    q, _eta_opt, _xi_opt = unpack(np.asarray(result.x, dtype=float))
     q[np.abs(q) < 1e-8] = 0.0
 
     schedule = pd.Series(
