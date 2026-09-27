@@ -345,6 +345,18 @@ class MultiVenueMarket:
 
         return tuple(all_results)
 
+    def pending_quantity(
+        self,
+        trader_id: str,
+    ) -> int:
+        return int(
+            sum(
+                item.quantity
+                for item in self.pending
+                if item.trader_id == trader_id
+            )
+        )
+
     def consolidated_inventory(
         self,
         trader_id: str,
