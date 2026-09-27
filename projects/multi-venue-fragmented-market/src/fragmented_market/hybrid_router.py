@@ -534,6 +534,9 @@ def route_hybrid_parent_order(
                         "expected_fill_probability": float(
                             row["fill_probability"]
                         ),
+                        "toxicity_probability": float(
+                            row.get("toxicity_probability", 0.0)
+                        ),
                         "queue_ahead": row["queue_ahead"],
                         "unit_cost": float(row["unit_cost"]),
                         "order_id": order_id,
