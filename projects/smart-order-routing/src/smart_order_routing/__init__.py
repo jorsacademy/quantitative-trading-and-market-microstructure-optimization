@@ -13,3 +13,13 @@ __all__ = [
     "default_problem",
     "solve",
 ]
+
+from .live_market import (
+    compare_static_dynamic_live_routing,
+    implementation_shortfall,
+)
+
+__all__ += [
+    "compare_static_dynamic_live_routing",
+    "implementation_shortfall",
+]
