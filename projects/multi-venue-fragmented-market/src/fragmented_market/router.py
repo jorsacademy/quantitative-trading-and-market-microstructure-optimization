@@ -263,9 +263,10 @@ def route_parent_order(
             if execution.trader_id == trader_id
         )
         total_filled += int(newly_filled)
+        committed = market.pending_quantity(trader_id)
         remaining = max(
             0,
-            requested - total_filled,
+            requested - total_filled - committed,
         )
 
     if remaining > 0 and market.pending:
@@ -290,6 +291,95 @@ def route_parent_order(
         not frame.empty
         and frame["filled_quantity"].sum() > 0
     ):
+        weights = frame["filled_quantity"].to_numpy(float)
+        prices = frame["average_price"].fillna(0.0).to_numpy(float)
+        average_price = float(
+            np.dot(weights, prices) / weights.sum()
+        )
+    else:
+        average_price = None
+
+    fees = (
+        float(frame["explicit_fee"].sum())
+        if not frame.empty
+        else 0.0
+    )
+
+    return LiveRoutingResult(
+        side=side,
+        requested_quantity=requested,
+        filled_quantity=total_filled,
+        remaining_quantity=remaining,
+        route_decisions=pd.DataFrame(decisions),
+        executions=frame,
+        average_execution_price=average_price,
+        explicit_fees=fees,
+        steps=market.time,
+    )
+
+
+
+def route_parent_order_static(
+    market: MultiVenueMarket,
+    *,
+    side: str,
+    quantity: int,
+    trader_id: str = "static_router",
+    maximum_active_venues: int = 3,
+    flush_steps: int = 20,
+) -> LiveRoutingResult:
+    """Route once from the initial snapshot and never re-optimize after latency/fills."""
+    requested = int(quantity)
+    snapshot = market.snapshot()
+    allocation = route_once(
+        snapshot,
+        side=side,
+        quantity=requested,
+        maximum_active_venues=maximum_active_venues,
+    )
+
+    decisions = []
+    for venue, child_quantity in allocation.items():
+        if child_quantity <= 0:
+            continue
+
+        market.schedule_market_order(
+            venue=venue,
+            trader_id=trader_id,
+            side=side,  # type: ignore[arg-type]
+            quantity=int(child_quantity),
+        )
+        decisions.append(
+            {
+                "decision_step": 0,
+                "market_time": market.time,
+                "venue": venue,
+                "quantity": int(child_quantity),
+                "best_bid_tick": int(
+                    snapshot.venues.loc[venue, "best_bid_tick"]
+                ),
+                "best_ask_tick": int(
+                    snapshot.venues.loc[venue, "best_ask_tick"]
+                ),
+                "latency_steps": int(
+                    snapshot.venues.loc[venue, "latency_steps"]
+                ),
+            }
+        )
+
+    # Let delayed child orders arrive, but do not re-route residual quantity.
+    market.step()
+    market.flush_pending(max_steps=flush_steps)
+
+    frame = market.execution_frame(trader_id)
+    total_filled = (
+        int(frame["filled_quantity"].sum())
+        if not frame.empty
+        else 0
+    )
+    remaining = max(0, requested - total_filled)
+
+    if total_filled > 0:
         weights = frame["filled_quantity"].to_numpy(float)
         prices = frame["average_price"].fillna(0.0).to_numpy(float)
         average_price = float(
