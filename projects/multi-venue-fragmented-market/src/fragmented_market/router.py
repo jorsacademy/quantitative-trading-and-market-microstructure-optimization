@@ -198,78 +198,76 @@ def route_parent_order(
 ) -> LiveRoutingResult:
     """Dynamically re-route residual quantity after venue fills and latency."""
     requested = int(quantity)
-    remaining = int(quantity)
-    decisions = []
     total_filled = 0
+    decisions = []
 
     for decision_step in range(max_steps):
-        if remaining <= 0:
+        if total_filled >= requested and market.pending_quantity(trader_id) == 0:
             break
 
-        snapshot = market.snapshot()
-        allocation = route_once(
-            snapshot,
-            side=side,
-            quantity=remaining,
-            maximum_active_venues=maximum_active_venues,
-        )
-
-        if int(allocation.sum()) <= 0:
-            market.step()
-            continue
-
-        for venue, child_quantity in allocation.items():
-            if child_quantity <= 0:
-                continue
-
-            market.schedule_market_order(
-                venue=venue,
-                trader_id=trader_id,
-                side=side,  # type: ignore[arg-type]
-                quantity=int(child_quantity),
-            )
-            decisions.append(
-                {
-                    "decision_step": decision_step,
-                    "market_time": market.time,
-                    "venue": venue,
-                    "quantity": int(child_quantity),
-                    "best_bid_tick": int(
-                        snapshot.venues.loc[
-                            venue,
-                            "best_bid_tick",
-                        ]
-                    ),
-                    "best_ask_tick": int(
-                        snapshot.venues.loc[
-                            venue,
-                            "best_ask_tick",
-                        ]
-                    ),
-                    "latency_steps": int(
-                        snapshot.venues.loc[
-                            venue,
-                            "latency_steps",
-                        ]
-                    ),
-                }
-            )
-
-        _next_snapshot, executions = market.step()
-
-        newly_filled = sum(
-            execution.filled_quantity
-            for execution in executions
-            if execution.trader_id == trader_id
-        )
-        total_filled += int(newly_filled)
         committed = market.pending_quantity(trader_id)
-        remaining = max(
+        allocatable = max(
             0,
             requested - total_filled - committed,
         )
 
-    if remaining > 0 and market.pending:
+        if allocatable > 0:
+            snapshot = market.snapshot()
+            allocation = route_once(
+                snapshot,
+                side=side,
+                quantity=allocatable,
+                maximum_active_venues=maximum_active_venues,
+            )
+
+            for venue, child_quantity in allocation.items():
+                if child_quantity <= 0:
+                    continue
+
+                market.schedule_market_order(
+                    venue=venue,
+                    trader_id=trader_id,
+                    side=side,  # type: ignore[arg-type]
+                    quantity=int(child_quantity),
+                )
+                decisions.append(
+                    {
+                        "decision_step": decision_step,
+                        "market_time": market.time,
+                        "venue": venue,
+                        "quantity": int(child_quantity),
+                        "best_bid_tick": int(
+                            snapshot.venues.loc[
+                                venue,
+                                "best_bid_tick",
+                            ]
+                        ),
+                        "best_ask_tick": int(
+                            snapshot.venues.loc[
+                                venue,
+                                "best_ask_tick",
+                            ]
+                        ),
+                        "latency_steps": int(
+                            snapshot.venues.loc[
+                                venue,
+                                "latency_steps",
+                            ]
+                        ),
+                    }
+                )
+
+        _next_snapshot, executions = market.step()
+
+        total_filled += int(
+            sum(
+                execution.filled_quantity
+                for execution in executions
+                if execution.trader_id == trader_id
+            )
+        )
+
+    if market.pending_quantity(trader_id) > 0:
         executions = market.flush_pending(
             max_steps=max_steps,
         )
@@ -280,10 +278,9 @@ def route_parent_order(
                 if execution.trader_id == trader_id
             )
         )
-        remaining = max(
-            0,
-            requested - total_filled,
-        )
+
+    total_filled = min(total_filled, requested)
+    remaining = max(0, requested - total_filled)
 
     frame = market.execution_frame(trader_id)
 
@@ -316,8 +313,6 @@ def route_parent_order(
         explicit_fees=fees,
         steps=market.time,
     )
-
-
 
 def route_parent_order_static(
     market: MultiVenueMarket,
