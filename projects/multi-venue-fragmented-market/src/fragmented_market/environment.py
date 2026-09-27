@@ -12,6 +12,9 @@ from limit_order_book_simulator.environment import (
     LOBEnvironment,
     LOBEnvironmentConfig,
 )
+from limit_order_book_simulator.calibrated_environment import (
+    CalibratedLOBEnvironment,
+)
 from limit_order_book_simulator.engine import Trade
 
 
@@ -136,11 +139,13 @@ class MultiVenueMarket:
         tick_size: float = 0.01,
         initial_mid_tick: int = 10_000,
         seed: int = 2026,
+        calibrated_order_flow: bool = False,
     ) -> None:
         self.venue_configs = venue_configs or default_venue_configs()
         self.tick_size = float(tick_size)
         self.initial_mid_tick = int(initial_mid_tick)
         self.seed = int(seed)
+        self.calibrated_order_flow = bool(calibrated_order_flow)
 
         names = [cfg.name for cfg in self.venue_configs]
         if len(names) != len(set(names)):
@@ -179,7 +184,12 @@ class MultiVenueMarket:
                 background_events_per_step=cfg.background_events_per_step,
                 seed=self.seed + cfg.seed_offset,
             )
-            self.venues[cfg.name] = LOBEnvironment(env_cfg)
+            environment_cls = (
+                CalibratedLOBEnvironment
+                if self.calibrated_order_flow
+                else LOBEnvironment
+            )
+            self.venues[cfg.name] = environment_cls(env_cfg)
 
         return self.snapshot()
 
@@ -187,6 +197,22 @@ class MultiVenueMarket:
         rows = []
         for cfg in self.venue_configs:
             obs = self.venues[cfg.name].observe()
+            micro = {
+                "flow_pressure": 0.0,
+                "hawkes_pressure": 0.0,
+                "toxicity_probability": 0.0,
+                "market_buy_intensity": 0.0,
+                "market_sell_intensity": 0.0,
+            }
+            if hasattr(self.venues[cfg.name], "microstructure_state"):
+                state = self.venues[cfg.name].microstructure_state()
+                micro.update(
+                    {
+                        key: float(state.loc[key])
+                        for key in micro
+                    }
+                )
+
             rows.append(
                 {
                     "venue": cfg.name,
@@ -200,6 +226,7 @@ class MultiVenueMarket:
                     "taker_fee_bps": cfg.taker_fee_bps,
                     "maker_rebate_bps": cfg.maker_rebate_bps,
                     "latency_steps": cfg.latency_steps,
+                    **micro,
                 }
             )
 
