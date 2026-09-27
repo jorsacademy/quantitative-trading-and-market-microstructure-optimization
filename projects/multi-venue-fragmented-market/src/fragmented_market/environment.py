@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-import numpy as np
 import pandas as pd
 
 from limit_order_book_simulator.environment import (
@@ -13,9 +12,11 @@ from limit_order_book_simulator.environment import (
     LOBEnvironment,
     LOBEnvironmentConfig,
 )
+from limit_order_book_simulator.engine import Trade
 
 
 Side = Literal["buy", "sell"]
+PendingType = Literal["market", "limit", "cancel"]
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,8 @@ class VenueExecution:
     explicit_fee: float
     arrival_time: int
     trader_id: str
+    liquidity_role: str
+    order_id: str | None = None
 
 
 @dataclass
@@ -66,9 +69,12 @@ class _PendingAction:
     due_time: int
     venue: str
     trader_id: str
-    side: Side
+    action_type: PendingType
+    side: Side | None
     quantity: int
     order_id: str
+    price_tick: int | None = None
+    cancel_order_id: str | None = None
 
 
 def default_venue_configs() -> tuple[VenueConfig, ...]:
@@ -131,9 +137,7 @@ class MultiVenueMarket:
         initial_mid_tick: int = 10_000,
         seed: int = 2026,
     ) -> None:
-        self.venue_configs = (
-            venue_configs or default_venue_configs()
-        )
+        self.venue_configs = venue_configs or default_venue_configs()
         self.tick_size = float(tick_size)
         self.initial_mid_tick = int(initial_mid_tick)
         self.seed = int(seed)
@@ -152,15 +156,9 @@ class MultiVenueMarket:
         self._order_counter = 0
         self.reset()
 
-    def _next_order_id(
-        self,
-        venue: str,
-        trader_id: str,
-    ) -> str:
+    def _next_order_id(self, venue: str, trader_id: str) -> str:
         self._order_counter += 1
-        return (
-            f"{trader_id}-{venue}-{self._order_counter:08d}"
-        )
+        return f"{trader_id}-{venue}-{self._order_counter:08d}"
 
     def reset(self) -> MultiVenueSnapshot:
         self.venues = {}
@@ -173,15 +171,12 @@ class MultiVenueMarket:
             env_cfg = LOBEnvironmentConfig(
                 tick_size=self.tick_size,
                 initial_mid_tick=(
-                    self.initial_mid_tick
-                    + cfg.initial_mid_offset_ticks
+                    self.initial_mid_tick + cfg.initial_mid_offset_ticks
                 ),
                 initial_spread_ticks=cfg.initial_spread_ticks,
                 initial_levels=4,
                 initial_level_quantity=cfg.initial_level_quantity,
-                background_events_per_step=(
-                    cfg.background_events_per_step
-                ),
+                background_events_per_step=cfg.background_events_per_step,
                 seed=self.seed + cfg.seed_offset,
             )
             self.venues[cfg.name] = LOBEnvironment(env_cfg)
@@ -190,10 +185,8 @@ class MultiVenueMarket:
 
     def snapshot(self) -> MultiVenueSnapshot:
         rows = []
-
         for cfg in self.venue_configs:
             obs = self.venues[cfg.name].observe()
-
             rows.append(
                 {
                     "venue": cfg.name,
@@ -211,7 +204,6 @@ class MultiVenueMarket:
             )
 
         frame = pd.DataFrame(rows).set_index("venue")
-
         nbbo_bid = int(frame["best_bid_tick"].max())
         nbbo_ask = int(frame["best_ask_tick"].min())
 
@@ -220,9 +212,7 @@ class MultiVenueMarket:
             venues=frame,
             nbbo_bid_tick=nbbo_bid,
             nbbo_ask_tick=nbbo_ask,
-            consolidated_mid_tick=0.5 * (
-                nbbo_bid + nbbo_ask
-            ),
+            consolidated_mid_tick=0.5 * (nbbo_bid + nbbo_ask),
         )
 
     def schedule_market_order(
@@ -233,89 +223,214 @@ class MultiVenueMarket:
         side: Side,
         quantity: int,
     ) -> str:
+        return self._schedule_order(
+            venue=venue,
+            trader_id=trader_id,
+            action_type="market",
+            side=side,
+            quantity=quantity,
+        )
+
+    def schedule_limit_order(
+        self,
+        *,
+        venue: str,
+        trader_id: str,
+        side: Side,
+        quantity: int,
+        price_tick: int,
+        order_id: str | None = None,
+    ) -> str:
+        return self._schedule_order(
+            venue=venue,
+            trader_id=trader_id,
+            action_type="limit",
+            side=side,
+            quantity=quantity,
+            price_tick=price_tick,
+            order_id=order_id,
+        )
+
+    def schedule_cancel(
+        self,
+        *,
+        venue: str,
+        trader_id: str,
+        order_id: str,
+    ) -> str:
+        return self._schedule_order(
+            venue=venue,
+            trader_id=trader_id,
+            action_type="cancel",
+            side=None,
+            quantity=0,
+            cancel_order_id=order_id,
+        )
+
+    def _schedule_order(
+        self,
+        *,
+        venue: str,
+        trader_id: str,
+        action_type: PendingType,
+        side: Side | None,
+        quantity: int,
+        price_tick: int | None = None,
+        order_id: str | None = None,
+        cancel_order_id: str | None = None,
+    ) -> str:
         if venue not in self.venues:
             raise ValueError(f"unknown venue: {venue}")
-        if quantity <= 0:
+        if action_type != "cancel" and quantity <= 0:
             raise ValueError("quantity must be positive")
+        if action_type == "limit" and price_tick is None:
+            raise ValueError("limit order requires price_tick")
 
         cfg = self._config_by_name[venue]
-        order_id = self._next_order_id(
-            venue,
-            trader_id,
-        )
+        scheduled_id = order_id or self._next_order_id(venue, trader_id)
         self.pending.append(
             _PendingAction(
                 due_time=self.time + cfg.latency_steps,
                 venue=venue,
                 trader_id=trader_id,
+                action_type=action_type,
                 side=side,
                 quantity=int(quantity),
-                order_id=order_id,
+                order_id=scheduled_id,
+                price_tick=price_tick,
+                cancel_order_id=cancel_order_id,
             )
         )
-        return order_id
+        return scheduled_id
+
+    def _execution_from_trades(
+        self,
+        *,
+        venue: str,
+        trader_id: str,
+        side: Side,
+        order_id: str,
+        requested_quantity: int,
+        trades: list[Trade] | tuple[Trade, ...],
+        liquidity_role: str,
+    ) -> VenueExecution | None:
+        relevant = [
+            trade
+            for trade in trades
+            if (
+                trade.taker_trader_id == trader_id
+                if liquidity_role == "taker"
+                else trade.maker_trader_id == trader_id
+            )
+        ]
+        if not relevant:
+            return None
+
+        filled = int(sum(trade.quantity for trade in relevant))
+        notional = sum(
+            trade.price_tick * self.tick_size * trade.quantity
+            for trade in relevant
+        )
+        average_price = notional / filled if filled else None
+        cfg = self._config_by_name[venue]
+        fee_bps = (
+            cfg.taker_fee_bps
+            if liquidity_role == "taker"
+            else cfg.maker_rebate_bps
+        )
+        explicit_fee = notional * fee_bps / 10_000.0
+
+        execution = VenueExecution(
+            venue=venue,
+            side=side,
+            requested_quantity=requested_quantity,
+            filled_quantity=filled,
+            average_price=average_price,
+            explicit_fee=float(explicit_fee),
+            arrival_time=self.time,
+            trader_id=trader_id,
+            liquidity_role=liquidity_role,
+            order_id=order_id,
+        )
+        self.executions.append(execution)
+        return execution
 
     def _execute_due_actions(self) -> list[VenueExecution]:
-        due = [
-            item
-            for item in self.pending
-            if item.due_time <= self.time
-        ]
-        self.pending = [
-            item
-            for item in self.pending
-            if item.due_time > self.time
-        ]
-
-        results = []
+        due = [item for item in self.pending if item.due_time <= self.time]
+        self.pending = [item for item in self.pending if item.due_time > self.time]
+        results: list[VenueExecution] = []
 
         for item in due:
             env = self.venues[item.venue]
-            trades = env.apply_action(
-                AgentAction(
-                    action_type="market",
-                    trader_id=item.trader_id,
-                    side=item.side,
-                    quantity=item.quantity,
-                    order_id=item.order_id,
-                )
-            )
 
-            filled = int(
-                sum(trade.quantity for trade in trades)
-            )
-
-            if filled:
-                notional = sum(
-                    (
-                        trade.price_tick
-                        * self.tick_size
-                        * trade.quantity
+            if item.action_type == "cancel":
+                if item.cancel_order_id is not None:
+                    env.apply_action(
+                        AgentAction(
+                            action_type="cancel",
+                            trader_id=item.trader_id,
+                            order_id=item.cancel_order_id,
+                        )
                     )
-                    for trade in trades
-                )
-                average_price = notional / filled
-            else:
-                average_price = None
-                notional = 0.0
+                continue
 
-            cfg = self._config_by_name[item.venue]
-            explicit_fee = (
-                notional * cfg.taker_fee_bps / 10_000.0
-            )
-
-            execution = VenueExecution(
-                venue=item.venue,
-                side=item.side,
-                requested_quantity=item.quantity,
-                filled_quantity=filled,
-                average_price=average_price,
-                explicit_fee=float(explicit_fee),
-                arrival_time=self.time,
+            assert item.side is not None
+            action = AgentAction(
+                action_type=item.action_type,
                 trader_id=item.trader_id,
+                side=item.side,
+                quantity=item.quantity,
+                price_tick=item.price_tick,
+                order_id=item.order_id,
             )
-            results.append(execution)
-            self.executions.append(execution)
+            trades = env.apply_action(action)
+            execution = self._execution_from_trades(
+                venue=item.venue,
+                trader_id=item.trader_id,
+                side=item.side,
+                order_id=item.order_id,
+                requested_quantity=item.quantity,
+                trades=trades,
+                liquidity_role="taker",
+            )
+            if execution is not None:
+                results.append(execution)
+
+        return results
+
+    def _record_maker_fills(
+        self,
+        venue: str,
+        trades: tuple[Trade, ...],
+    ) -> list[VenueExecution]:
+        grouped: dict[tuple[str, str, Side], list[Trade]] = {}
+
+        for trade in trades:
+            if trade.maker_trader_id == "background":
+                continue
+            maker_side: Side = (
+                "sell" if trade.taker_side == "buy" else "buy"
+            )
+            key = (
+                trade.maker_trader_id,
+                trade.maker_order_id,
+                maker_side,
+            )
+            grouped.setdefault(key, []).append(trade)
+
+        results = []
+        for (trader_id, order_id, side), maker_trades in grouped.items():
+            execution = self._execution_from_trades(
+                venue=venue,
+                trader_id=trader_id,
+                side=side,
+                order_id=order_id,
+                requested_quantity=sum(t.quantity for t in maker_trades),
+                trades=maker_trades,
+                liquidity_role="maker",
+            )
+            if execution is not None:
+                results.append(execution)
 
         return results
 
@@ -323,44 +438,40 @@ class MultiVenueMarket:
         executions = self._execute_due_actions()
 
         for cfg in self.venue_configs:
-            self.venues[cfg.name].step(
+            result = self.venues[cfg.name].step(
                 (),
                 background_events=cfg.background_events_per_step,
+            )
+            executions.extend(
+                self._record_maker_fills(
+                    cfg.name,
+                    result.trades,
+                )
             )
 
         self.time += 1
         return self.snapshot(), tuple(executions)
 
-    def flush_pending(
-        self,
-        max_steps: int = 20,
-    ) -> tuple[VenueExecution, ...]:
+    def flush_pending(self, max_steps: int = 20) -> tuple[VenueExecution, ...]:
         all_results = []
-
         for _ in range(max_steps):
             if not self.pending:
                 break
             _snapshot, results = self.step()
             all_results.extend(results)
-
         return tuple(all_results)
 
-    def pending_quantity(
-        self,
-        trader_id: str,
-    ) -> int:
+    def pending_quantity(self, trader_id: str) -> int:
         return int(
             sum(
                 item.quantity
                 for item in self.pending
                 if item.trader_id == trader_id
+                and item.action_type != "cancel"
             )
         )
 
-    def consolidated_inventory(
-        self,
-        trader_id: str,
-    ) -> int:
+    def consolidated_inventory(self, trader_id: str) -> int:
         return int(
             sum(
                 env.inventory.get(trader_id, 0)
@@ -368,10 +479,7 @@ class MultiVenueMarket:
             )
         )
 
-    def consolidated_cash(
-        self,
-        trader_id: str,
-    ) -> float:
+    def consolidated_cash(self, trader_id: str) -> float:
         cash = sum(
             env.cash.get(trader_id, 0.0)
             for env in self.venues.values()
@@ -383,16 +491,32 @@ class MultiVenueMarket:
         )
         return float(cash - fees)
 
-    def execution_frame(
-        self,
-        trader_id: str | None = None,
-    ) -> pd.DataFrame:
+    def open_orders(self, trader_id: str) -> pd.DataFrame:
+        frames = []
+        for venue, env in self.venues.items():
+            frame = env.open_orders(trader_id)
+            if frame.empty:
+                continue
+            frame = frame.copy()
+            frame.insert(0, "venue", venue)
+            frames.append(frame)
+        if not frames:
+            return pd.DataFrame(
+                columns=[
+                    "venue",
+                    "order_id",
+                    "side",
+                    "price_tick",
+                    "remaining",
+                    "queue_ahead",
+                ]
+            )
+        return pd.concat(frames, ignore_index=True)
+
+    def execution_frame(self, trader_id: str | None = None) -> pd.DataFrame:
         rows = []
         for execution in self.executions:
-            if (
-                trader_id is not None
-                and execution.trader_id != trader_id
-            ):
+            if trader_id is not None and execution.trader_id != trader_id:
                 continue
             rows.append(
                 {
@@ -404,6 +528,8 @@ class MultiVenueMarket:
                     "explicit_fee": execution.explicit_fee,
                     "arrival_time": execution.arrival_time,
                     "trader_id": execution.trader_id,
+                    "liquidity_role": execution.liquidity_role,
+                    "order_id": execution.order_id,
                 }
             )
         return pd.DataFrame(rows)
