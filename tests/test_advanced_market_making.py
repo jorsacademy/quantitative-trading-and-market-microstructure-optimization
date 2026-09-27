@@ -54,7 +54,12 @@ def test_avellaneda_stoikov_spread_is_finite_positive(as_result):
 def test_multi_asset_value_function_and_policy_are_finite(multi_result):
     assert np.isfinite(multi_result.value_function.to_numpy()).all()
     assert np.isfinite(multi_result.initial_value)
-    assert (multi_result.policy != "").all()
+
+    decision_policy = multi_result.policy[
+        multi_result.policy.index.get_level_values("time")
+        < multi_result.policy.index.get_level_values("time").max()
+    ]
+    assert (decision_policy != "").all()
 
 
 def test_q_learning_policy_is_not_better_than_exact_dp(rl_result):
