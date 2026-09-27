@@ -506,6 +506,18 @@ def route_hybrid_parent_order(
 
     market.flush_pending(max_steps=10)
 
+    # A delayed maker placement may have arrived during the flush above.
+    # Cancel any newly resting passive orders before deadline crossing.
+    post_flush_open = market.open_orders(trader_id)
+    if not post_flush_open.empty:
+        for _, order in post_flush_open.iterrows():
+            market.schedule_cancel(
+                venue=str(order["venue"]),
+                trader_id=trader_id,
+                order_id=str(order["order_id"]),
+            )
+        market.flush_pending(max_steps=10)
+
     lit_frame = market.execution_frame(trader_id)
     lit_filled = (
         int(lit_frame["filled_quantity"].sum())
