@@ -2,7 +2,10 @@ import numpy as np
 
 from limit_order_book_simulator.environment import AgentAction
 from fragmented_market.dark_pool import MidpointDarkPool
-from fragmented_market.environment import MultiVenueMarket
+from fragmented_market.environment import (
+    MultiVenueMarket,
+    VenueConfig,
+)
 from fragmented_market.hybrid_router import (
     candidate_table,
     hybrid_route_once,
@@ -48,7 +51,22 @@ def test_hybrid_wave_respects_candidate_capacities():
 
 
 def test_maker_fill_uses_maker_rebate_accounting():
-    market = MultiVenueMarket(seed=122)
+    market = MultiVenueMarket(
+        venue_configs=(
+            VenueConfig(
+                name="venue_a",
+                taker_fee_bps=0.18,
+                maker_rebate_bps=-0.04,
+                latency_steps=0,
+                initial_mid_offset_ticks=0,
+                initial_spread_ticks=2,
+                initial_level_quantity=90,
+                background_events_per_step=0,
+                seed_offset=0,
+            ),
+        ),
+        seed=122,
+    )
     venue = "venue_a"
     env = market.venues[venue]
     obs = env.observe()
