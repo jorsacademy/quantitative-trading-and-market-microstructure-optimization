@@ -209,3 +209,14 @@ src/optimal_trade_execution/
 The original deterministic model remains the transparent baseline. The
 stochastic layer is intentionally separate so the incremental modeling
 assumptions are inspectable.
+
+
+## Shared event-driven benchmark
+
+This project can also be evaluated on the repository's common synthetic exchange:
+
+~~~bash
+python projects/limit-order-book-simulator/run_shared_environment.py
+~~~
+
+The shared environment uses a price-time-priority matching engine, live queue depth, background order flow, cancellations, partial fills, and trader-level inventory/cash accounting.
