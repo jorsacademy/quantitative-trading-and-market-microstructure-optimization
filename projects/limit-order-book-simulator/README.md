@@ -153,3 +153,123 @@ It does not model:
 - production-grade exchange throughput.
 
 The architecture is intended as a controllable testbed, not a market emulator.
+
+
+## Calibrated microstructure layer
+
+The simulator now also includes an optional advanced order-flow engine:
+
+~~~text
+queue state
++ Hawkes conditional intensities
+        ↓
+state-dependent event probabilities
+        ↓
+market / limit / cancel event
+        ↓
+LOB transition
+        ↓
+updated queue state
+~~~
+
+### Hawkes-process order flow
+
+Module:
+
+~~~text
+limit_order_book_simulator.hawkes_flow
+~~~
+
+Six event streams are modeled jointly:
+
+- market buy;
+- market sell;
+- limit bid;
+- limit ask;
+- cancel bid;
+- cancel ask.
+
+Conditional intensities mean-revert toward baseline activity and are excited by recent events through a nonnegative cross-excitation matrix.
+
+This creates event clustering and directional persistence that are absent from the iid baseline event generator.
+
+The implementation is a discrete event-time Hawkes approximation, not a continuous-time maximum-likelihood calibration engine.
+
+### Queue-reactive calibration
+
+Module:
+
+~~~text
+limit_order_book_simulator.queue_reactive
+~~~
+
+The calibration layer estimates event probabilities conditional on book state:
+
+- tight vs wide spread;
+- buy-heavy / balanced / sell-heavy imbalance;
+- thin vs thick top-of-book depth.
+
+The model also estimates event-type-specific mean order quantities.
+
+Any compatible event log can be passed to the calibrator; the repository includes a reproducible synthetic calibration sample so the project remains self-contained.
+
+### Combined calibrated environment
+
+Module:
+
+~~~text
+limit_order_book_simulator.calibrated_environment
+~~~
+
+The advanced environment blends:
+
+~~~text
+Hawkes event intensity
++
+queue-reactive conditional probability
+~~~
+
+for each event type.
+
+The matching engine itself is unchanged. Only the stochastic order-flow process is replaced, which makes iid and calibrated environments directly comparable.
+
+### Adverse-selection / toxicity model
+
+Module:
+
+~~~text
+limit_order_book_simulator.toxicity
+~~~
+
+A logistic toxicity model maps current microstructure state to the probability of an adverse post-fill state.
+
+Features include:
+
+- absolute order-book imbalance;
+- recent signed market-order pressure;
+- spread;
+- thin-depth indicator;
+- directional Hawkes pressure.
+
+The fitted probability is exposed in every calibrated venue snapshot and can be consumed by market-making or routing policies.
+
+### Run calibration experiment
+
+~~~bash
+python projects/limit-order-book-simulator/run_microstructure_calibration.py
+~~~
+
+Generated outputs include:
+
+~~~text
+queue_reactive_training_data.csv
+queue_reactive_conditional_probabilities.csv
+queue_reactive_mean_quantities.csv
+hawkes_excitation_matrix.csv
+hawkes_queue_reactive_event_log.csv
+microstructure_state_path.csv
+toxicity_training_data.csv
+toxicity_model_coefficients.csv
+~~~
+
+The original iid environment remains available as the transparent baseline.
