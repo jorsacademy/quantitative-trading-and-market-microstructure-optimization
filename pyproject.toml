@@ -29,6 +29,7 @@ where = [
   "projects/limit-order-placement/src",
   "projects/rfq-pricing-dealer-optimization/src",
   "projects/limit-order-book-simulator/src",
+  "projects/multi-venue-fragmented-market/src",
 ]
 
 [tool.pytest.ini_options]
