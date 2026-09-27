@@ -55,3 +55,14 @@ python -m trading_optimization.limit_order_placement
 ## Limitations
 
 The state space is deliberately compact. A production model would require richer queue dynamics, order-book levels, price movement, partial fills, cancellation latency, adverse selection, and exchange-specific priority rules.
+
+
+## Shared event-driven benchmark
+
+This project can also be evaluated on the repository's common synthetic exchange:
+
+~~~bash
+python projects/limit-order-book-simulator/run_shared_environment.py
+~~~
+
+The shared environment uses a price-time-priority matching engine, live queue depth, background order flow, cancellations, partial fills, and trader-level inventory/cash accounting.
