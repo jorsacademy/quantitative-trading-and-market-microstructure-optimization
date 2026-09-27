@@ -23,3 +23,9 @@ __all__ += [
     "compare_static_dynamic_live_routing",
     "implementation_shortfall",
 ]
+
+from .hybrid_market import compare_lit_vs_hybrid
+
+__all__ += [
+    "compare_lit_vs_hybrid",
+]
