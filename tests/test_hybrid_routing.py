@@ -76,7 +76,7 @@ def test_maker_fill_uses_maker_rebate_accounting():
         trader_id="maker_agent",
         side="sell",
         quantity=5,
-        price_tick=obs.best_ask_tick,
+        price_tick=obs.best_ask_tick - 1,
     )
     market.step()
 
