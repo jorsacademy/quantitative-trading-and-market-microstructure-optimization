@@ -29,3 +29,9 @@ from .hybrid_market import compare_lit_vs_hybrid
 __all__ += [
     "compare_lit_vs_hybrid",
 ]
+
+from .toxicity_market import compare_toxicity_aware_routing
+
+__all__ += [
+    "compare_toxicity_aware_routing",
+]
