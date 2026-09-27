@@ -288,3 +288,46 @@ src/fragmented_market/
 ├── dark_pool.py
 └── hybrid_router.py
 ~~~
+
+
+## Toxicity-aware fragmented routing
+
+Every lit venue can now optionally run the calibrated Hawkes + queue-reactive order-flow environment.
+
+The consolidated venue snapshot then adds:
+
+~~~text
+recent signed flow pressure
+Hawkes directional pressure
+toxicity probability
+market-buy intensity
+market-sell intensity
+~~~
+
+The hybrid router consumes these states directly.
+
+For lit taker orders, the toxicity penalty increases when the router is chasing aggressive flow in the same direction.
+
+For passive maker orders, adverse-selection risk increases when flow pressure is likely to trade against the resting quote.
+
+Dark midpoint candidates receive a lower toxicity loading because displayed-queue signaling is absent, while still retaining fill-risk and waiting costs.
+
+### Benchmark
+
+~~~bash
+python projects/multi-venue-fragmented-market/run_toxicity_routing.py
+~~~
+
+This compares:
+
+~~~text
+hybrid routing with toxicity penalty disabled
+vs.
+toxicity-aware hybrid routing
+~~~
+
+on matched calibrated market seeds.
+
+The benchmark exports route decisions, lit/dark executions, venue event logs, and probability-weighted toxicity of selected child-order actions.
+
+The toxicity-aware policy is not assumed to dominate every path; it explicitly trades execution price/fill probability against modeled adverse-selection exposure.
