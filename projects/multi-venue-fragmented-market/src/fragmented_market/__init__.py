@@ -23,3 +23,25 @@ __all__ = [
     "route_parent_order_static",
     "route_once",
 ]
+
+from .dark_pool import (
+    DarkExecution,
+    DarkPoolConfig,
+    MidpointDarkPool,
+)
+from .hybrid_router import (
+    HybridRoutingResult,
+    candidate_table,
+    hybrid_route_once,
+    route_hybrid_parent_order,
+)
+
+__all__ += [
+    "DarkExecution",
+    "DarkPoolConfig",
+    "MidpointDarkPool",
+    "HybridRoutingResult",
+    "candidate_table",
+    "hybrid_route_once",
+    "route_hybrid_parent_order",
+]
