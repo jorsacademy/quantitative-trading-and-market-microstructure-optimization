@@ -21,7 +21,14 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = [
+  "src",
+  "projects/optimal-trade-execution/src",
+  "projects/market-making-inventory-control/src",
+  "projects/smart-order-routing/src",
+  "projects/limit-order-placement/src",
+  "projects/rfq-pricing-dealer-optimization/src",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
