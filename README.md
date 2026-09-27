@@ -12,8 +12,8 @@ It is deliberately not a collection of price-prediction notebooks. The core ques
 
 | Project | Decision problem | Methods | Status |
 | --- | --- | --- | --- |
-| [Optimal Trade Execution](projects/optimal-trade-execution/) | Schedule a parent order across time while balancing market impact and price risk | Convex optimization, Almgren-Chriss style cost-risk model | Implemented |
-| [Market Making & Inventory Control](projects/market-making-inventory-control/) | Choose bid/ask quote offsets while controlling dealer inventory | Finite-horizon stochastic dynamic programming | Implemented |
+| [Optimal Trade Execution](projects/optimal-trade-execution/) | Schedule a parent order under impact, alpha decay, volatility scenarios, and tail risk | Convex optimization, learned impact model, stochastic execution, CVaR | Flagship |
+| [Market Making & Inventory Control](projects/market-making-inventory-control/) | Optimize dealer quotes under single/multi-asset inventory risk and compare control vs RL | Dynamic programming, Avellaneda-Stoikov, multi-asset control, Q-learning | Flagship |
 | [Smart Order Routing](projects/smart-order-routing/) | Allocate an order across fragmented venues under capacity, fee, latency, and fill-risk differences | MILP | Implemented |
 | [Limit Order Placement](projects/limit-order-placement/) | Decide market/limit/wait actions from queue and order-book state | MDP / dynamic programming | Implemented |
 | [RFQ Pricing & Dealer Optimization](projects/rfq-pricing-dealer-optimization/) | Select client quote levels under acceptance and inventory-risk trade-offs | Discrete stochastic optimization / MILP | Implemented |
@@ -43,7 +43,10 @@ pytest
 
 ```bash
 python -m trading_optimization.execution
+python projects/optimal-trade-execution/run_advanced.py
+
 python -m trading_optimization.market_making
+python projects/market-making-inventory-control/run_advanced.py
 python -m trading_optimization.smart_order_routing
 python -m trading_optimization.limit_order_placement
 python -m trading_optimization.rfq_pricing
