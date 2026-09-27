@@ -1,0 +1,90 @@
+# Quantitative Trading and Market Microstructure Optimization
+
+Operations Research, stochastic control, and prescriptive analytics for electronic trading and market microstructure.
+
+The repository focuses on the decision layer of quantitative trading:
+
+> **signal / state estimates → optimize execution, quoting, routing, and inventory decisions**
+
+It is deliberately not a collection of price-prediction notebooks. The core questions are how to trade, quote, route, size, and hedge under market impact, liquidity, execution risk, and inventory constraints.
+
+## Project map
+
+| Project | Decision problem | Methods | Status |
+| --- | --- | --- | --- |
+| [Optimal Trade Execution](projects/optimal-trade-execution/) | Schedule a parent order across time while balancing market impact and price risk | Convex optimization, Almgren-Chriss style cost-risk model | Implemented |
+| [Market Making & Inventory Control](projects/market-making-inventory-control/) | Choose bid/ask quote offsets while controlling dealer inventory | Finite-horizon stochastic dynamic programming | Implemented |
+| [Smart Order Routing](projects/smart-order-routing/) | Allocate an order across fragmented venues under capacity, fee, latency, and fill-risk differences | MILP | Implemented |
+| [Limit Order Placement](projects/limit-order-placement/) | Decide market/limit/wait actions from queue and order-book state | MDP / dynamic programming | Implemented |
+| [RFQ Pricing & Dealer Optimization](projects/rfq-pricing-dealer-optimization/) | Select client quote levels under acceptance and inventory-risk trade-offs | Discrete stochastic optimization / MILP | Implemented |
+
+## Design principles
+
+Each project is intended to include:
+
+- an explicit mathematical decision model;
+- deterministic synthetic data or market-state generator;
+- executable Python implementation;
+- benchmark policies;
+- feasibility/invariant tests;
+- scenario or sensitivity analysis;
+- clear limitations.
+
+## Installation
+
+Python 3.10+:
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+## Run examples
+
+```bash
+python -m trading_optimization.execution
+python -m trading_optimization.market_making
+python -m trading_optimization.smart_order_routing
+python -m trading_optimization.limit_order_placement
+python -m trading_optimization.rfq_pricing
+```
+
+## Repository structure
+
+```text
+projects/
+├── optimal-trade-execution/
+├── market-making-inventory-control/
+├── smart-order-routing/
+├── limit-order-placement/
+└── rfq-pricing-dealer-optimization/
+
+src/
+└── trading_optimization/
+
+tests/
+```
+
+## Methodological theme
+
+The common pattern is:
+
+```text
+market state / forecasts
+        ↓
+execution or quoting economics
+        ↓
+optimization / control model
+        ↓
+action policy
+        ↓
+benchmark + stress validation
+```
+
+## Scope
+
+The examples are synthetic research/education models. They are not production trading systems and do not include exchange connectivity, live market data, broker integration, latency engineering, regulatory controls, transaction reporting, or capital deployment.
+
+## Disclaimer
+
+Educational and research use only. Nothing in this repository is investment advice, trading advice, or a recommendation to transact in any financial instrument.
