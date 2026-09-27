@@ -15,6 +15,12 @@ from limit_order_book_simulator.environment import (
 from limit_order_book_simulator.calibrated_environment import (
     CalibratedLOBEnvironment,
 )
+from limit_order_book_simulator.queue_reactive import (
+    fit_queue_reactive_model,
+)
+from limit_order_book_simulator.toxicity import (
+    fit_toxicity_model,
+)
 from limit_order_book_simulator.engine import Trade
 
 
@@ -172,6 +178,17 @@ class MultiVenueMarket:
         self.executions = []
         self._order_counter = 0
 
+        shared_queue_model = (
+            fit_queue_reactive_model()
+            if self.calibrated_order_flow
+            else None
+        )
+        shared_toxicity_model = (
+            fit_toxicity_model()
+            if self.calibrated_order_flow
+            else None
+        )
+
         for cfg in self.venue_configs:
             env_cfg = LOBEnvironmentConfig(
                 tick_size=self.tick_size,
@@ -184,12 +201,14 @@ class MultiVenueMarket:
                 background_events_per_step=cfg.background_events_per_step,
                 seed=self.seed + cfg.seed_offset,
             )
-            environment_cls = (
-                CalibratedLOBEnvironment
-                if self.calibrated_order_flow
-                else LOBEnvironment
-            )
-            self.venues[cfg.name] = environment_cls(env_cfg)
+            if self.calibrated_order_flow:
+                self.venues[cfg.name] = CalibratedLOBEnvironment(
+                    env_cfg,
+                    queue_model=shared_queue_model,
+                    toxicity_model=shared_toxicity_model,
+                )
+            else:
+                self.venues[cfg.name] = LOBEnvironment(env_cfg)
 
         return self.snapshot()
 
