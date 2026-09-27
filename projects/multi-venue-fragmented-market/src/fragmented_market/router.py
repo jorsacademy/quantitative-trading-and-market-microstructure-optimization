@@ -108,7 +108,15 @@ def route_once(
     capacities = frame[depth_column].to_numpy(int)
 
     total_capacity = int(capacities.sum())
-    target = min(int(quantity), total_capacity)
+    active_limit = min(maximum_active_venues, len(capacities))
+    reachable_capacity = int(
+        np.sort(capacities)[-active_limit:].sum()
+    )
+    target = min(
+        int(quantity),
+        total_capacity,
+        reachable_capacity,
+    )
 
     if target <= 0:
         return pd.Series(
