@@ -9,6 +9,7 @@ from .environment import (
 from .router import (
     LiveRoutingResult,
     route_parent_order,
+    route_parent_order_static,
     route_once,
 )
 
@@ -19,5 +20,6 @@ __all__ = [
     "default_venue_configs",
     "LiveRoutingResult",
     "route_parent_order",
+    "route_parent_order_static",
     "route_once",
 ]
