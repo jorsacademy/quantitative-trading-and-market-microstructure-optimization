@@ -106,3 +106,24 @@ python projects/multi-venue-fragmented-market/run_hybrid_routing.py
 ~~~
 
 This benchmark compares dynamic lit-taker-only routing against the hybrid maker/taker/dark policy on matched market seeds.
+
+
+## Adverse-selection / toxicity-aware routing
+
+The Smart Order Router can now consume calibrated microstructure state from each live venue.
+
+The venue snapshot includes:
+
+- signed recent market-order pressure;
+- Hawkes directional pressure;
+- fitted toxicity probability.
+
+These states enter candidate economics for lit maker, lit taker, and dark midpoint execution.
+
+Run:
+
+~~~bash
+python projects/multi-venue-fragmented-market/run_toxicity_routing.py
+~~~
+
+The benchmark holds the calibrated market seed fixed and compares the same hybrid router with toxicity penalty disabled versus enabled.
