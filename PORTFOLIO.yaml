@@ -1,0 +1,19 @@
+schema_version: 1
+repository: quantitative-trading-and-market-microstructure-optimization
+role: umbrella
+axis: application
+area: quantitative-trading
+status: active
+owner: jorsacademy
+projects:
+  - optimal-trade-execution
+  - market-making-inventory-control
+  - smart-order-routing
+  - limit-order-placement
+  - rfq-pricing-dealer-optimization
+  - limit-order-book-simulator
+  - multi-venue-fragmented-market
+conventions:
+  provenance_records: true
+  reproducibility_expected: true
+  benchmark_assumptions_documented: true
