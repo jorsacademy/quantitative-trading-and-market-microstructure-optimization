@@ -1,4 +1,9 @@
 # Quantitative Trading and Market Microstructure Optimization
+<!-- portfolio-umbrella:start -->
+## Portfolio role
+
+This repository is a primary umbrella repository in the consolidated Jors Academy portfolio. It groups related native research projects under `projects/` and serves as the main entry point for this domain.
+<!-- portfolio-umbrella:end -->
 
 Operations Research, stochastic control, and prescriptive analytics for electronic trading and market microstructure.
 
